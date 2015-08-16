@@ -277,10 +277,10 @@ client_commands.user_list = function(data)
 
   local new_cursors = {}
   for _, uid in ipairs(data.uids) do
-    new_cursors[uid] = {
-      x = cursors[uid] and cursors[uid].x or 0,
-      y = cursors[uid] and cursors[uid].y or 0,
-      generator = cursors[uid] and cursors[uid].generator or generators[1]
+    new_cursors[uid] = cursors[uid] or {
+      x = 0,
+      y = 0,
+      generator = generators[1]
     }
   end
 
@@ -396,7 +396,7 @@ function love.draw()
   love.graphics.print(text, (w - circle_font:getWidth(text)) / 2, (h - circle_font:getHeight()) / 2)
 
   -- snapper tool
-  if love.keyboard.isDown("lshift", "rshift") then
+  if love.keyboard.isDown("lshift", "rshift") or love.mouse.isDown(love._version_minor >= 10) and 2 or "r" then
     for i = 1, 30 do
       local r = i * snapper_radius
       if r > start_r then
@@ -492,10 +492,8 @@ function love.update(dt)
   for uid, cursor in pairs(cursors) do
     local dist = ((-cursor.x) ^ 2 + (-cursor.y) ^ 2) ^ .5
     local pitch = 1 / math.max(1 / max, math.min(dist / 300, 1 / min))
-    if voices[uid] and voices[uid]:isPlaying() then
-      voices[uid]:setPitch(pitch)
-    else
-      voices[uid]:setPitch(1)
+    if voices[uid] then
+      voices[uid]:setPitch(voices[uid]:isPlaying() and pitch or 1)
     end
   end
 
@@ -531,12 +529,19 @@ function love.update(dt)
         broadcast_notification(string.format("%s lefted.", friendly_name(event.peer)))
 
         -- stop his plays
+        if not uids[event.peer] then return end -- what the fuck fix it
         server_host:broadcast(commander.serialize("stop"), {
           uid = uids[event.peer]
         })
 
         -- remove from the peer table
         peers[uids[event.peer]] = nil
+
+        -- broadcast the user list
+        local list = {}
+        for uid, peer in pairs(peers) do
+          table.insert(list, uid)
+        end
 
         server_host:broadcast(commander.serialize("user_list", {
           count = #list,
@@ -591,7 +596,7 @@ function love.mousemoved(x, y, dx, dy)
   local w, h = love.graphics.getDimensions()
   local x, y = w / 2 - x, h / 2 - y
 
-  if love.keyboard.isDown("lshift", "rshift") then
+  if love.keyboard.isDown("lshift", "rshift") or love.mouse.isDown(love._version_minor >= 10) and 2 or "r" then
     local dist = ((-x) ^ 2 + (-y) ^ 2) ^ .5
     dist = math.floor(dist / snapper_radius + .5) * snapper_radius
 
@@ -607,7 +612,7 @@ function love.mousemoved(x, y, dx, dy)
 end
 
 function love.wheelmoved(x, y)
-  if love.keyboard.isDown("lshift", "rshift") then
+  if love.keyboard.isDown("lshift", "rshift") or love.mouse.isDown(love._version_minor >= 10) and 2 or "r" then
     snapper_radius = math.max(20, math.min(200, snapper_radius + y * 3))
   else
     -- i could do this with modulo but i'm too stupid
