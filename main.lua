@@ -177,6 +177,9 @@ local function push_notification(text, time, color)
   end
 end
 
+-- snapper tool
+local snapper_radius = 40
+
 -- more stuff for the client
 local fonts, small_font, font, big_font, game_info
 if not headless then
@@ -336,6 +339,7 @@ function love.load()
     server = client_host:connect(hosting and "localhost:9393" or "88.156.250.206:9393")
 
     love.graphics.setBackgroundColor(0, 0, 0)
+    love.mouse.setVisible(false)
   end
 end
 
@@ -346,6 +350,7 @@ function love.draw()
 
   -- the middle fucking thing
   local r = math.min(w, h) * 0.1
+  local start_r = r
 
   local pitch_sum, pitch_count = 1, 1
   for uid, voice in pairs(voices) do
@@ -389,6 +394,17 @@ function love.draw()
   love.graphics.setFont(circle_font)
   love.graphics.setColor(0, 255, 0)
   love.graphics.print(text, (w - circle_font:getWidth(text)) / 2, (h - circle_font:getHeight()) / 2)
+
+  -- snapper tool
+  if love.keyboard.isDown("lshift", "rshift") then
+    for i = 1, 30 do
+      local r = i * snapper_radius
+      if r > start_r then
+        love.graphics.setColor(0, 255, 255, 130 - (i / 30) * 130)
+        love.graphics.circle("line", w / 2, h / 2, r)
+      end
+    end
+  end
 
   -- cursors
   love.graphics.setLineStyle("rough")
@@ -573,26 +589,40 @@ end
 
 function love.mousemoved(x, y, dx, dy)
   local w, h = love.graphics.getDimensions()
+  local x, y = w / 2 - x, h / 2 - y
+
+  if love.keyboard.isDown("lshift", "rshift") then
+    local dist = ((-x) ^ 2 + (-y) ^ 2) ^ .5
+    dist = math.floor(dist / snapper_radius + .5) * snapper_radius
+
+    local angle = math.atan2(y, x)
+    x = math.cos(angle) * dist
+    y = math.sin(angle) * dist
+  end
 
   server:send(commander.serialize("move_mouse", {
-    x = w / 2 - x,
-    y = h / 2 - y
+    x = x,
+    y = y
   }))
 end
 
 function love.wheelmoved(x, y)
-  -- i could do this with modulo but i'm too stupid
-  my_generator = my_generator + y
-  if my_generator > #generators then
-    my_generator = 1
-  elseif my_generator < 1 then
-    my_generator = #generators
+  if love.keyboard.isDown("lshift", "rshift") then
+    snapper_radius = math.max(20, math.min(200, snapper_radius + y * 3))
+  else
+    -- i could do this with modulo but i'm too stupid
+    my_generator = my_generator + y
+    if my_generator > #generators then
+      my_generator = 1
+    elseif my_generator < 1 then
+      my_generator = #generators
+    end
+
+    push_notification("generator set to " .. generators[my_generator] .. ".", 1, {0, 0, 80})
+
+
+    server:send(commander.serialize("set_generator", {
+      generator = generators[my_generator]
+    }))
   end
-
-  push_notification("generator set to " .. generators[my_generator] .. ".", 1, {0, 0, 80})
-
-
-  server:send(commander.serialize("set_generator", {
-    generator = generators[my_generator]
-  }))
 end
