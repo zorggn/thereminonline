@@ -229,7 +229,7 @@ local function broadcast_notification(text, time, color)
 end
 
 -- game info
-local game_name = "MUSICFUCK"
+local game_name = "SCHLONG MUSIC STUDIO"
 local function game_info()
   local info = "it's multiplayer theremin"
 
@@ -297,9 +297,6 @@ client_commands.stop = function(data)
   voices[data.uid]:stop()
 end
 client_commands.set_generator = function(data)
-  if voices[data.uid] then
-    voices[data.uid]:stop()
-  end
 
   local voice = denver.get({
     waveform = data.generator,
@@ -307,6 +304,11 @@ client_commands.set_generator = function(data)
     length = 1
   })
   voice:setLooping(true)
+
+  if voices[data.uid] and voices[data.uid]:isPlaying() then
+    voice:play() 
+    voices[data.uid]:stop()
+  end
 
   voices[data.uid] = voice
   cursors[data.uid].generator = data.generator
@@ -529,10 +531,9 @@ function love.update(dt)
         broadcast_notification(string.format("%s lefted.", friendly_name(event.peer)))
 
         -- stop his plays
-        if not uids[event.peer] then return end -- what the fuck fix it
-        server_host:broadcast(commander.serialize("stop"), {
+        server_host:broadcast(commander.serialize("stop", {
           uid = uids[event.peer]
-        })
+        }))
 
         -- remove from the peer table
         peers[uids[event.peer]] = nil
